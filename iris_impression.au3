@@ -10,8 +10,8 @@
 ; AutoIt3Wrapper
 #AutoIt3Wrapper_Res_ProductName=iris_impression
 #AutoIt3Wrapper_Res_Description=Permet d'installer l'imprimante virtuelle PDFCreator : IRIS_IMPRESSION
-#AutoIt3Wrapper_Res_ProductVersion=1.0.0
-#AutoIt3Wrapper_Res_FileVersion=1.0.0
+#AutoIt3Wrapper_Res_ProductVersion=1.1.0
+#AutoIt3Wrapper_Res_FileVersion=1.1.0
 #AutoIt3Wrapper_Res_CompanyName=CNAMTS/CPAM_ARTOIS/APPLINAT
 #AutoIt3Wrapper_Res_LegalCopyright=yann.daniel@assurance-maladie.fr
 #AutoIt3Wrapper_Res_Language=1036
@@ -79,6 +79,7 @@ Global $g_sSiteNetworkPath = ""
 ;------------------------------
 ; On recupere les valeurs de conf.ini
 Global $g_sPdfCreatorPrinter = _YDTool_GetAppConfValue("general", "printer")
+Global $g_sUninstall = _YDTool_GetAppConfValue("general", "uninstall")
 Global $g_aPathsArray = _YDTool_GetAppConfSection("paths")
 ;------------------------------
 ; On recupere d autres variables globales
@@ -86,6 +87,8 @@ Global $g_sSite = _YDTool_GetHostSite(@ComputerName)
 _YDLogger_Var("$g_sSite", $g_sSite)
 Global $g_sLoggerUserName = _YDTool_GetHostLoggedUserName(@ComputerName)
 _YDLogger_Var("$g_sLoggerUserName", $g_sLoggerUserName)
+Global $g_sOSArchitecture = @CPUArch
+_YDLogger_Var("$g_sOSArchitecture", $g_sOSArchitecture)
 ;------------------------------
 _Main()
 ; #MAIN SCRIPT# =================================================================================================================
@@ -122,17 +125,31 @@ Func _Main()
 	; On supprime l'ancienne imprimante PDFCreator IRIS_IMPRESSION (IRIS_ARRAS, etc..) si installee prcédemment
 	Local $sOldPdfCreatorPrinter = "IRIS_" & $g_sSite
 	If _DeleteOldPdfCreatorPrinterIfInstalled($sOldPdfCreatorPrinter) Then
-		_YDLogger_Log("Suppression ancienne imprimante " & $sOldPdfCreatorPrinter, $sFuncName)		
+		_YDLogger_Log("Suppression ancienne imprimante " & $sOldPdfCreatorPrinter, $sFuncName)
 	Else
 		_YDLogger_Log("Ancienne imprimante " & $sOldPdfCreatorPrinter & " non trouvee", $sFuncName, 2)
-	EndIf	
+	EndIf
+	;------------------------------
+	; On supprime l'ancienne imprimante PDFCreator IRIS_IMPRESSION si desinstallation demandee (via conf.ini)
+	If $g_sUninstall = 1 Then
+		If _DeleteOldPdfCreatorPrinterIfInstalled($g_sPdfCreatorPrinter) Then
+			_YDLogger_Log("Suppression ancienne imprimante " & $g_sPdfCreatorPrinter, $sFuncName)
+		Else
+			_YDLogger_Log("Ancienne imprimante " & $g_sPdfCreatorPrinter & " non trouvee", $sFuncName, 2)
+		EndIf
+		If _YDTool_SetAppConfValue("general", "uninstall", 0) = 1 Then
+			_YDLogger_Log("Reinitialisation uninstall a 0 => OK", $sFuncName)
+		Else
+			_YDLogger_Error("Reinitialisation uninstall a 0 => NOK", $sFuncName)
+		EndIf
+	EndIf
 	;------------------------------
 	; On installe l'imprimante PDFCreator IRIS_IMPRESSION si pas deja installee pour cet utilisateur
-	If Not _IsPdfCreatorPrinterInstalled($g_sPdfCreatorPrinter) And $g_sLoggerUserName <> "" Then 
+	If Not _IsPdfCreatorPrinterInstalled($g_sPdfCreatorPrinter) And $g_sLoggerUserName <> "" Then
 		_YDLogger_Log("Imprimante " & $g_sPdfCreatorPrinter & " non installee !")
 		_InstallPdfCreatorPrinter()
 	EndIf
-	If _IsPdfCreatorPrinterInstalled($g_sPdfCreatorPrinter) Then 
+	If _IsPdfCreatorPrinterInstalled($g_sPdfCreatorPrinter) Then
 		_YDLogger_Log("Imprimante " & $g_sPdfCreatorPrinter & " installee pour utilisateur : " & $g_sLoggerUserName)
 	Else
 		_YDLogger_Error("Imprimante " & $g_sPdfCreatorPrinter & " non installee malgre la tentative d'installation !")
@@ -173,7 +190,7 @@ Func _DeleteOldPdfCreatorPrinterIfInstalled($_sPrinterVal)
 			_YDLogger_Log("Suppression OK de la cle [" & $sRegKeyVal & "]", $sFuncName)
 		Else
 			_YDLogger_Log("Suppression de la cle [" & $sRegKeyVal & "] impossible", $sFuncName)
-		EndIf		
+		EndIf
 		Return True
 	Else
 		_YDLogger_Log("Valeur [" & $_sPrinterVal & "] introuvable dans la cle [" & $sRegKeyVal & "] !", $sFuncName, 2)
@@ -200,7 +217,7 @@ Func _IsPdfCreatorPrinterInstalled($_sPrinterName)
 		_YDLogger_Log("Cle [" & $sRegKeyVal & "] trouvee", $sFuncName, 2)
 		Return True
 	Else
-		_YDLogger_Error("Cle [" & $sRegKeyVal & "] introuvable !", $sFuncName)
+		_YDLogger_Log("Cle [" & $sRegKeyVal & "] introuvable !", $sFuncName)
 		Return False
 	EndIf
 EndFunc
@@ -208,17 +225,18 @@ EndFunc
 ; #FUNCTION# ====================================================================================================================
 ; Description ...: Permet d'installer l'imprimante g_sPdfCreatorPrinter
 ; Syntax.........: _InstallPdfCreatorPrinter()
-; Parameters ....: 
+; Parameters ....:
 ; Return values .: Success      - True
 ;                  Failure      - False
 ; Author ........: yann.daniel@assurance-maladie.fr
-; Last Modified .: 07/06/2019
+; Last Modified .: 23/09/2020
 ; Notes .........:
 ;================================================================================================================================
 Func _InstallPdfCreatorPrinter()
 	Local $sFuncName = "_InstallPdfCreatorPrinter"
 	Local $iRegError
 	Local $sRegName
+	Local $sProgramFiles
 	;---------------------------------------
 	$sRegName = 'HKCU_add_printer'
 	$iRegError = 0
@@ -229,12 +247,14 @@ Func _InstallPdfCreatorPrinter()
 		_YDLogger_Error("Inscriptions registre " & $sRegName & " : NOK !", $sFuncName)
 	EndIf
 	;---------------------------------------
+	$sProgramFiles = ($g_sOSArchitecture = "X64") ? "Program Files (x86)" : "Program Files"
+	;---------------------------------------
 	$sRegName = 'HKCU_add_profile'
 	$iRegError = 0
-	Local $sRegData = 'Microsoft Word - |\.docx|\.doc|\Microsoft Excel - |\.xlsx|\.xls|\Microsoft PowerPoint - |\.pptx|\.ppt|'	
-	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptBinaries','REG_SZ','C:\Program Files\PDFCreator\GS9.05\gs9.05\Bin\') <> 1 Then $iRegError += 1
+	Local $sRegData = 'Microsoft Word - |\.docx|\.doc|\Microsoft Excel - |\.xlsx|\.xls|\Microsoft PowerPoint - |\.pptx|\.ppt|'
+	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptBinaries','REG_SZ','C:\' & $sProgramFiles & '\PDFCreator\GS9.05\gs9.05\Bin\') <> 1 Then $iRegError += 1
 	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptFonts','REG_SZ','') <> 1 Then $iRegError += 1
-	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptLibraries','REG_SZ','C:\Program Files\PDFCreator\GS9.05\gs9.05\Lib\') <> 1 Then $iRegError += 1
+	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptLibraries','REG_SZ','C:\' & $sProgramFiles & '\PDFCreator\GS9.05\gs9.05\Lib\') <> 1 Then $iRegError += 1
 	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Ghostscript', 'DirectoryGhostscriptResource','REG_SZ','') <> 1 Then $iRegError += 1
 	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Printing', 'Counter','REG_SZ','177') <> 1 Then $iRegError += 1
 	If RegWrite('HKCU\Software\PDFCreator\Profiles\' & $g_sPdfCreatorPrinter & '\Printing', 'DeviceHeightPoints','REG_SZ','842') <> 1 Then $iRegError += 1
@@ -424,6 +444,3 @@ Func _InstallPdfCreatorPrinter()
 		_YDLogger_Error("Inscriptions registre " & $sRegName & " : NOK !", $sFuncName)
 	EndIf
 EndFunc
-
-
-
