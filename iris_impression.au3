@@ -10,8 +10,8 @@
 ; AutoIt3Wrapper
 #AutoIt3Wrapper_Res_ProductName=iris_impression
 #AutoIt3Wrapper_Res_Description=Permet d'installer l'imprimante virtuelle PDFCreator : IRIS_IMPRESSION
-#AutoIt3Wrapper_Res_ProductVersion=1.1.0
-#AutoIt3Wrapper_Res_FileVersion=1.1.0
+#AutoIt3Wrapper_Res_ProductVersion=1.0.4
+#AutoIt3Wrapper_Res_FileVersion=1.0.4
 #AutoIt3Wrapper_Res_CompanyName=CNAMTS/CPAM_ARTOIS/APPLINAT
 #AutoIt3Wrapper_Res_LegalCopyright=yann.daniel@assurance-maladie.fr
 #AutoIt3Wrapper_Res_Language=1036
@@ -87,7 +87,7 @@ Global $g_sSite = _YDTool_GetHostSite(@ComputerName)
 _YDLogger_Var("$g_sSite", $g_sSite)
 Global $g_sLoggerUserName = _YDTool_GetHostLoggedUserName(@ComputerName)
 _YDLogger_Var("$g_sLoggerUserName", $g_sLoggerUserName)
-Global $g_sOSArchitecture = @CPUArch
+Global $g_sOSArchitecture = (@OSVersion = "WIN_7") ? "X86" : "X64"
 _YDLogger_Var("$g_sOSArchitecture", $g_sOSArchitecture)
 ;------------------------------
 _Main()
